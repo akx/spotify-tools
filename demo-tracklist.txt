@@ -1,0 +1,8 @@
+# lines starting with hashes or
+; semicolons are comments.
+
+# A Spotify track link:
+spotify:track:6JEK0CvvjDjjMUBFoXShNZ
+
+# A bare track link:
+MC Hammer - U Can't Touch This
