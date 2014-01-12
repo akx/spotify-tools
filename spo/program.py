@@ -2,6 +2,7 @@
 
 import argparse
 from collections import Counter
+import hashlib
 import logging, codecs
 import os
 from pickle import dump, load
@@ -10,8 +11,17 @@ from jinja2.loaders import FileSystemLoader
 from spo.lastfm import LastFMAPI
 
 from spo.spotify import SpotifyAPI
+from spo.util import flatten
 from spo.youtube import YoutubeAPI
 from spo.yt_matcher import YoutubeMatcher
+
+
+class PseudoTrack(dict):
+	def __init__(self, string):
+		artist, title = string.split(" - ", 1)
+		self["artists"] = [{"name": artist}]
+		self["name"] = title
+		self["href"] = "pseudo:%s" % hashlib.md5(string.encode("UTF-8")).hexdigest()
 
 
 class Program(object):
@@ -24,10 +34,15 @@ class Program(object):
 		yt = YoutubeAPI()
 		ytm = YoutubeMatcher(yt)
 
-		for line in file(url_file, "rb"):
+		for line in codecs.open(url_file, "rb", encoding="UTF-8"):
 			line = line.strip()
+			if not line or line.startswith(";") or line.startswith("#"):
+				continue
 			if line.startswith("spotify:track:"):
 				tracks.append(sa.search_by_uri(line))
+			elif " - " in line:
+				tracks.append(PseudoTrack(line))
+
 
 		for track in tracks:
 			track["youtube"] = ytm.match_track(track)
@@ -48,10 +63,12 @@ class Program(object):
 		out_tracks = []
 		seen = set()
 		for track in tracks:
-			if track["href"] in seen:
+			key = flatten("%s %s" % (track["artist"], track["name"]))
+			if track["href"] in seen or key in seen:
 				continue
 			out_tracks.append(track)
 			seen.add(track["href"])
+			seen.add(key)
 		return out_tracks
 
 
@@ -103,7 +120,6 @@ class Program(object):
 		else:
 			tracks = self.read_into_cache(input_list, cache_file)
 
-		tracks = self.deduplicate(tracks)
 
 		if lastfm_api_key:
 			self.add_tags(lastfm_api_key, tracks)
@@ -113,8 +129,12 @@ class Program(object):
 
 		for track in tracks:
 			track["artist"] = ", ".join(a["name"] for a in track["artists"])
-			track["open_spotify_url"] = track["href"].replace(":", "/").replace("spotify/", "http://open.spotify.com/")
+			if "spotify" in track["href"]:
+				track["open_spotify_url"] = track["href"].replace(":", "/").replace("spotify/", "http://open.spotify.com/")
+			else:
+				track["open_spotify_url"] = None
 
+		tracks = self.deduplicate(tracks)
 		tracks.sort(key=lambda t:t["name"])
 
 		template_dir = os.path.join(os.path.dirname(__file__), "templates")

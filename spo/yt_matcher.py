@@ -31,7 +31,10 @@ class YoutubeMatcher(object):
 			for artist in artist_name.split("&"):
 				artist_variations.append(self.cleanup_artist(artist))
 		title = track["name"]
-		length = float(track["length"])
+		try:
+			length = float(track["length"])
+		except KeyError:
+			length = None
 
 		termses = []
 
@@ -53,7 +56,8 @@ class YoutubeMatcher(object):
 	def _score_single_entry(self, ent, expected_length, max_views, search_terms):
 		score = 0
 		score += flattened_levenshtein(search_terms.lower(), ent["title"].lower())
-		score += abs(expected_length - ent["length"])
+		if expected_length:
+			score += abs(expected_length - ent["length"])
 		if ent["rating"] < 0:
 			score *= -ent["rating"]
 		if "live" in ent["title"].lower():
