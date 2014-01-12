@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="">
+<head>
+	<meta charset="UTF-8">
+	<title>Playlist</title>
+	<link href='https://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
+	<style>
+	body{font: 20pt "Open Sans", sans-serif; margin: 0;background:#333}
+	.track {
+		width: 330px;
+		height: 250px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		float: left;
+		background: rgba(255,255,255,0.7);
+		margin: 15px;
+		padding: 15px;
+	}
+	.artist {
+		display: inline
+	}
+	.title {
+		display: inline;
+		font-weight: bold;
+	}
+	.year {
+		opacity: 0.5;
+		display: inline
+	}
+	.track a {
+		text-decoration: none;
+		font-size: 16pt;
+	}
+	a.spotify { color: darkgreen }
+	a.youtube { color: darkred }
+	.tag {
+		background: rgba(0,0,0,0.3);
+		padding: 3px;
+		margin: 3px;
+		font-size: 12pt;
+		border-radius: 0.2em;
+		text-wrap: avoid;
+		display: inline-block;
+	}
+	</style>
+</head>
+<body>
+{% for track in tracks %}
+<div class="track">
+	<div class="artist">{{ track.artist }}</div>
+	<div class="title">{{ track.name }}</div>
+	{% if track.album and track.album.released %}<div class="year">{{ track.album.released }}</div>{% endif %}
+	{% for tag in track.artist_tags|sort %}<span class="tag">{{ tag }}</span>{% endfor %}
+	{% if track.youtube %}<a class="youtube" href="{{ track.youtube.url }}" title="{{ track.youtube.title }}">YouTube</a>{% endif %}
+	{% if track.available %}<a class="spotify" href="{{ track.open_spotify_url }}">Spotify</a>{% endif %}
+</div>
+{% endfor %}
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+*.html
+*.pyc
+*.txt
+*cache
+.idea
