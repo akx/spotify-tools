@@ -1,131 +1,155 @@
 # -- encoding: UTF-8 --
+from contextlib import contextmanager
 
-from collections import Counter
 import hashlib
-import codecs
-import os
-from pickle import dump, load
+import logging
+from StringIO import StringIO
+
 from jinja2.environment import Environment
 from jinja2.loaders import FileSystemLoader
-from spo.lastfm import LastFMAPI
 
-from spo.spotify import SpotifyAPI
-from spo.tools import Tool
+import click
+import codecs
+import os
+from spo.lastfm import LastFMAPI
+from spo.spotify import Spotify
+from spo.file_processor import FileProcessor
 from spo.util import flatten
 from spo.youtube import YoutubeAPI
 from spo.yt_matcher import YoutubeMatcher
 
 
-class PseudoTrack(dict):
-	def __init__(self, string):
-		artist, title = string.split(" - ", 1)
-		self["artists"] = [{"name": artist}]
-		self["name"] = title
-		self["href"] = "pseudo:%s" % hashlib.md5(string.encode("UTF-8")).hexdigest()
+log = logging.getLogger(__name__)
+
+class BaseTrack(dict):
+    def get_artist_string(self):
+        return ", ".join(a["name"] for a in self.get("artists", ()))
+
+    artist = property(get_artist_string)
 
 
-class PlaylistGenerator(Tool):
-	tool_name = "playlist-gen"
-
-	@classmethod
-	def populate_parser(cls, parser):
-		parser.add_argument("input_list", help=u"Name of file containing spotify:track: URIs, one per line")
-		parser.add_argument("-o", "--output-name", required=True, help=u"Base name for output data (cache and HTML)")
-		parser.add_argument("-c", "--use-cache", action="store_true", help=u"Use generated results cache file (speeds up subsequent runs, but changes to input list are not recorded)")
-		parser.add_argument("--lastfm-api-key", help=u"Last.fm API key, for artist tag support")
-
-	def read_and_match_file(self, url_file):
-		tracks = []
-		sa = SpotifyAPI()
-		yt = YoutubeAPI()
-		ytm = YoutubeMatcher(yt)
-
-		for line in codecs.open(url_file, "rb", encoding="UTF-8"):
-			line = line.strip()
-			if not line or line.startswith(";") or line.startswith("#"):
-				continue
-			if line.startswith("spotify:track:"):
-				tracks.append(sa.search_by_uri(line))
-			elif " - " in line:
-				tracks.append(PseudoTrack(line))
+class PseudoTrack(BaseTrack):
+    def __init__(self, string, separator=" - "):
+        super(PseudoTrack, self).__init__()
+        artist, title = unicode(string).split(separator, 1)
+        self["artists"] = [{"name": artist}]
+        self["name"] = title
+        self["href"] = "pseudo:%s" % hashlib.md5(string.encode("UTF-8")).hexdigest()
 
 
-		for track in tracks:
-			track["youtube"] = ytm.match_track(track)
-
-		return tracks
-
-	def read_into_cache(self, input_list, cache_file):
-		tracks = self.read_and_match_file(input_list)
-
-		with file(cache_file, "wb") as outf:
-			dump(tracks, outf, -1)
-		return tracks
-
-	def read_from_cache(self, cache_file):
-		return load(file(cache_file, "rb"))
-
-	def deduplicate(self, tracks):
-		out_tracks = []
-		seen = set()
-		for track in tracks:
-			key = flatten("%s %s" % (track["artist"], track["name"]))
-			if track["href"] in seen or key in seen:
-				continue
-			out_tracks.append(track)
-			seen.add(track["href"])
-			seen.add(key)
-		return out_tracks
+class SpotifyTrack(BaseTrack):
+    def __init__(self, iterable=None, **kwargs):
+        super(SpotifyTrack, self).__init__(iterable, **kwargs)
+        uri = self["uri"]
+        self["open_spotify_url"] = "http://open.spotify.com/%s" % uri.replace("spotify:", "").replace(":", "/")
 
 
-	def add_tags(self, lastfm_api_key, tracks):
-		lfm = LastFMAPI(lastfm_api_key)
-		for track in tracks:
-			tags = Counter()
-			for a in track["artists"]:
-				data = lfm.get_artist_tags(a["name"])
-				try:
-					tag_list = data["toptags"]["tag"]
-					if isinstance(tag_list, dict):
-						tag_list = [tag_list]
-					for tag in tag_list:
-						words = [tag["name"].lower()]
-						for word in words:
-							tags[word] += int(tag["count"]) / float(len(words))
-				except KeyError:
-					pass
+class NoProgress(object):
 
-			track["artist_tags"] = [t[0] for t in tags.most_common(5)]
+    def __init__(self, iterable):
+        self.iterable = iterable
+
+    def __enter__(self):
+        return self
+
+    def __iter__(self):
+        return iter(self.iterable)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return
 
 
-	def run(self, input_list, output_name, use_cache=False, lastfm_api_key=None):
-		cache_file = "%s.cache" % output_name
+class PlaylistGenerator(FileProcessor):
 
-		if use_cache:
-			tracks = self.read_from_cache(cache_file)
-		else:
-			tracks = self.read_into_cache(input_list, cache_file)
+    def __init__(self, input, show_progress=False):
+        super(PlaylistGenerator, self).__init__(input=input, output=None)
+        self.spotify = Spotify()
+        self.show_progress = show_progress
+
+    def _progress(self, iterable, **kwargs):
+        if self.show_progress:
+            kwargs.setdefault("show_pos", True)
+            return click.progressbar(iterable, **kwargs)
+        else:
+            return NoProgress(iterable)
+
+    def read_input_tracks(self):
+        tracks = []
+
+        with self._progress(self._read_lines(), label="parsing") as lines:
+            for line in lines:
+                if line.startswith("spotify:track:"):
+                    tracks.append(SpotifyTrack(self.spotify.track(line)))
+                elif " - " in line:
+                    tracks.append(PseudoTrack(line, " - "))
+                elif " / " in line:
+                    tracks.append(PseudoTrack(line, " / "))
+                else:
+                    log.warn("Can't parse line: %s" % line)
+
+        return tracks
+
+    def youtube_match(self, tracks):
+        youtube = YoutubeAPI()
+        youtube_matcher = YoutubeMatcher(youtube)
+        with self._progress(tracks, label="youtube") as track_iter:
+            for track in track_iter:
+                if not track.get("youtube"):
+                    track["youtube"] = youtube_matcher.match_track(track)
+        return tracks
+
+    def deduplicate(self, tracks):
+        out_tracks = []
+        seen = set()
+        for track in tracks:
+            key = flatten("%s %s" % (track.get_artist_string(), track["name"]))
+            if track["href"] in seen or key in seen:
+                continue
+            out_tracks.append(track)
+            seen.add(track["href"])
+            seen.add(key)
+        return out_tracks
+
+    def add_lastfm_tags(self, tracks, lastfm_api_key=None):
+        lfm = LastFMAPI(api_key=lastfm_api_key)
+        if not lfm.api_key:  # pragma: no cover
+            log.warn("Skipping tags (no API key given)")
+            return
+
+        with self._progress(tracks, label="last.fm") as track_iter:
+            for track in track_iter:
+                tags_counter = lfm.get_artists_tags_counter([a["name"] for a in track["artists"]])
+                track["artist_tags"] = [t[0] for t in tags_counter.most_common(5)]
+        return tracks
+
+    def write_html(self, output_name, tracks):
+        tracks = sorted(tracks, key=lambda t: t["name"])
+        template_dir = os.path.join(os.path.dirname(__file__), "../templates")
+        env = Environment(loader=FileSystemLoader(template_dir), autoescape=True)
+        for tpl_name in ("cards", "table"):
+            tpl = env.get_template("%s.jinja" % tpl_name)
+            with codecs.open("%s-%s.html" % (output_name, tpl_name), "wb", encoding="UTF-8") as outf:
+                outf.write(tpl.render(tracks=tracks))
 
 
-		if lastfm_api_key:
-			self.add_tags(lastfm_api_key, tracks)
-		else:
-			self.log.warn("Skipping tags (no API key given)")
+@click.command("generate-playlist", short_help="Generate a playlist HTML file out of Spotify track URIs.")
+@click.option("-i", "--input", required=True, help=u"Name of file containing spotify:track: URIs, one per line", metavar="FILENAME", type=click.File('rb'))
+@click.option("-o", "--output-name", required=True, help=u"Base name for output data (cache and HTML)", metavar="BASENAME", type=click.Path())
+@click.option("-p", "--progress/--no-progress", "show_progress", default=True, help="Show progress")
+@click.option("-y", "--youtube/--no-youtube", "youtube", default=True, help="Fetch YouTube URLs")
+@click.option("-l", "--lastfm/--no-lastfm", "lastfm", default=True, help="Fetch Last.fm tags")
+@click.option("-d", "--dedupe/--no-dedupe", "dedupe", default=True, help="Deduplicate")
+@click.option("--lastfm-api-key", default=None, help=u"Last.fm API key, for artist tag support", metavar="KEY")
+def generate_playlist(input, output_name, show_progress, lastfm_api_key, lastfm, youtube, dedupe):  # pragma: no cover
+    plg = PlaylistGenerator(input=input, show_progress=show_progress)
+    tracks = plg.read_input_tracks()
+    if dedupe:
+        tracks = plg.deduplicate(tracks)
 
+    if youtube:
+        tracks = plg.youtube_match(tracks)
 
-		for track in tracks:
-			track["artist"] = ", ".join(a["name"] for a in track["artists"])
-			if "spotify" in track["href"]:
-				track["open_spotify_url"] = track["href"].replace(":", "/").replace("spotify/", "http://open.spotify.com/")
-			else:
-				track["open_spotify_url"] = None
+    if lastfm:
+        tracks = plg.add_lastfm_tags(tracks, lastfm_api_key=lastfm_api_key)
 
-		tracks = self.deduplicate(tracks)
-		tracks.sort(key=lambda t:t["name"])
-
-		template_dir = os.path.join(os.path.dirname(__file__), "../templates")
-		env = Environment(loader=FileSystemLoader(template_dir), autoescape=True)
-		for tpl_name in ("cards", "table"):
-			tpl = env.get_template("%s.jinja" % tpl_name)
-			with codecs.open("%s-%s.html" % (output_name, tpl_name), "wb", encoding="UTF-8") as outf:
-				outf.write(tpl.render(tracks=tracks))
+    plg.write_html(output_name, tracks)

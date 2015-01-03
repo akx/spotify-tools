@@ -1,5 +1,4 @@
-from spo.program import Program
+from spo import cli
 
 if __name__ == "__main__":
-	p = Program()
-	p.cmdline()
+    cli()

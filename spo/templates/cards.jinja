@@ -52,7 +52,7 @@
 	{% if track.album and track.album.released %}<div class="year">{{ track.album.released }}</div>{% endif %}
 	{% for tag in track.artist_tags|sort %}<span class="tag">{{ tag }}</span>{% endfor %}
 	{% if track.youtube %}<a class="youtube" href="{{ track.youtube.url }}" title="{{ track.youtube.title }}">YouTube</a>{% endif %}
-	{% if track.available %}<a class="spotify" href="{{ track.open_spotify_url }}">Spotify</a>{% endif %}
+	{% if track.open_spotify_url %}<a class="spotify" href="{{ track.open_spotify_url }}">Spotify</a>{% endif %}
 </div>
 {% endfor %}
 
