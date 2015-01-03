@@ -5,13 +5,15 @@ import logging
 from spo.tools.playlist_gen import generate_playlist
 from spo.tools.spotify_albums_to_tracks import spotify_albums_to_tracks
 from spo.tools.spotify_search import spotify_search_albums, spotify_search_tracks
+from spo.tools.spotify_playlists_to_tracks import spotify_playlists_to_tracks
 from spo.spotify import Spotify
 
 known_tools = [
     generate_playlist,
     spotify_albums_to_tracks,
     spotify_search_albums,
-    spotify_search_tracks
+    spotify_search_tracks,
+    spotify_playlists_to_tracks
 ]
 
 

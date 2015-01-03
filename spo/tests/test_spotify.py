@@ -1,5 +1,6 @@
 # -- encoding: UTF-8 --
 from StringIO import StringIO
+from spo.tools.spotify_playlists_to_tracks import SpotifyPlaylistsToTracks
 from spo.tools.spotify_search import ListToSpotifyURLs
 from spo.tools.spotify_albums_to_tracks import SpotifyAlbumURLsToTrackURLs
 
@@ -29,3 +30,9 @@ def test_album_to_tracks():
     SpotifyAlbumURLsToTrackURLs(input=StringIO("spotify:album:4m2880jivSbbyEGAKfITCa\nspotify:album:thisaintanuri"), output=output_sio).run()
     assert "Random Access" in output_sio.getvalue()  # Got the title"
     assert "36c4JohayB9qd64eidQMBi" in output_sio.getvalue()  # Got 'Doin' it right'"
+
+
+def test_playlists_to_tracks():
+    output_sio = StringIO()
+    SpotifyPlaylistsToTracks(input=StringIO("spotify:user:spotify:playlist:3kjNcwrUClSp1Iatukq3TC"), output=output_sio).run()
+    assert output_sio.getvalue().count("spotify:track:") > 5
