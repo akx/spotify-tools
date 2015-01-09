@@ -1,6 +1,7 @@
 # -- encoding: UTF-8 --
 
 import json
+import shelve
 import os
 import string
 import time
@@ -12,8 +13,7 @@ class Cache(object):
 
     def __init__(self, path, max_life):
         self.path = path
-        if not os.path.isdir(self.path):
-            os.makedirs(self.path)
+        self.shelf = shelve.open("%s.shelve" % self.path)
         self.max_life = int(max_life)
 
     def transform_key(self, key):
@@ -25,29 +25,24 @@ class Cache(object):
 
     def put(self, key, value, life=0):
         expire = time.time() + (life or self.max_life)
-        value = [expire, value]
-        try:
-            data = json.dumps(value)
-        except TypeError:
-            data = pickle.dumps(value, -1)
-        with file(self.transform_key(key), "wb") as fp:
-            fp.write(data)
+        self._put_shelve(key, value, expire)
+
+    def _put_shelve(self, key, value, expire):
+        self.shelf[self.transform_key(key)] = {"expire": expire, "value": value}
 
     def get(self, key, default=None):
-        key = self.transform_key(key)
-        if os.path.isfile(key):
-            with file(key, "rb") as fp:
-                k = fp.read(1)
-                fp.seek(0)
-                if k in "[{":
-                    expires, value = json.load(fp)
-                else:
-                    expires, value = pickle.load(fp)
-                if time.time() <= expires:
-                    return value
-                else:
-                    return default
-        return default
+        t_key = self.transform_key(key)
+        expire = None
+        value = default
+        if t_key in self.shelf:
+            shelved = self.shelf[t_key]
+            value = shelved["value"]
+            expire = shelved["expire"]
+
+        if expire is not None and time.time() > expire:
+            value = default
+
+        return value
 
     def has(self, key):
         return os.path.isfile(self.transform_key(key))

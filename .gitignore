@@ -1,6 +1,6 @@
 *.html
 *.pyc
-*cache
+*.shelve
 .cache*
 .idea
 /venv
