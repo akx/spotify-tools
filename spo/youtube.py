@@ -7,7 +7,7 @@ from spo.cache import Cache
 class YoutubeAPI(object):
 
     def __init__(self):
-        self.cache = Cache("youtube_cache", 7 * 86400)
+        self.cache = Cache("youtube_cache", 30 * 86400)
         self.log = logging.getLogger("YoutubeAPI")
         self.yt_service = YouTubeService()
 

@@ -113,8 +113,8 @@ class PlaylistGenerator(FileProcessor):
     def add_lastfm_tags(self, tracks, lastfm_api_key=None):
         lfm = LastFMAPI(api_key=lastfm_api_key)
         if not lfm.api_key:  # pragma: no cover
-            log.warn("Skipping tags (no API key given)")
-            return
+            log.warn("Skipping Last.fm tags (no API key given)")
+            return tracks
 
         with self._progress(tracks, label="last.fm") as track_iter:
             for track in track_iter:
@@ -123,7 +123,6 @@ class PlaylistGenerator(FileProcessor):
         return tracks
 
     def write_html(self, output_name, tracks):
-        tracks = sorted(tracks, key=lambda t: t["name"])
         template_dir = os.path.join(os.path.dirname(__file__), "../templates")
         env = Environment(loader=FileSystemLoader(template_dir), autoescape=True)
         for tpl_name in ("cards", "table"):

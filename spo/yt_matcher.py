@@ -47,7 +47,7 @@ class YoutubeMatcher(object):
         for search_terms in termses:
             ents = self.find_best_matches(search_terms, length)
             if ents:
-                self.log.info("Got match for %r" % search_terms)
+                self.log.info("Got match for %r: %r" % (search_terms, ents[0]["url"]))
                 return ents[0]
             else:
                 self.log.info("No results for %r..." % search_terms)
@@ -64,7 +64,11 @@ class YoutubeMatcher(object):
             score *= 1.2
         if "cover" in ent["title"].lower():
             score *= 2
-        score += (score * 0.3) * 1.0 - (ent["views"] / max_views)
+        if max_views > 0:
+            views = (ent["views"] / max_views)
+        else:
+            views = 0
+        score += (score * 0.3) * 1.0 - views
         return score
 
     def find_best_matches(self, search_terms, expected_length):
