@@ -6,6 +6,7 @@ from spo.tools.playlist_gen import generate_playlist
 from spo.tools.spotify_albums_to_tracks import spotify_albums_to_tracks
 from spo.tools.spotify_search import spotify_search_albums, spotify_search_tracks
 from spo.tools.spotify_playlists_to_tracks import spotify_playlists_to_tracks
+from spo.tools.discogs_collection import get_discogs_collection_albums
 from spo.spotify import Spotify
 
 known_tools = [
@@ -13,7 +14,8 @@ known_tools = [
     spotify_albums_to_tracks,
     spotify_search_albums,
     spotify_search_tracks,
-    spotify_playlists_to_tracks
+    spotify_playlists_to_tracks,
+    get_discogs_collection_albums,
 ]
 
 logging.captureWarnings(True)
