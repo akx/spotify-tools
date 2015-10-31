@@ -55,8 +55,9 @@ class YoutubeMatcher(object):
 
     def _score_single_entry(self, ent, expected_length, max_views, search_terms):
         score = 0
+        score += ent.get("position", 0) * 0.2
         score += flattened_levenshtein(search_terms.lower(), ent["title"].lower())
-        if expected_length:
+        if ent["length"] is not None and expected_length:
             score += abs(expected_length - ent["length"])
         if ent["rating"] < 0:
             score *= -ent["rating"]
@@ -74,11 +75,11 @@ class YoutubeMatcher(object):
     def find_best_matches(self, search_terms, expected_length):
         ents = []
         feed = self.youtube_api.search(search_terms)
-        for entry in feed.entry:
+        for position, entry in enumerate(feed["items"]):
             ent = {
-                "title": entry.media.title.text.decode("UTF-8", "ignore"),
-                "length": float(entry.media.duration.seconds),
-                "url": unicode(entry.media.player.url).replace("&feature=youtube_gdata_player", ""),
+                "title": entry["snippet"]["title"],
+                "length": None,  # Unavailable, alas
+                "url": "https://youtube.com/watch?v=" + entry["id"]["videoId"],
             }
             try:
                 ent["views"] = float(entry.statistics.view_count)
@@ -88,6 +89,7 @@ class YoutubeMatcher(object):
                 ent["rating"] = float(entry.rating.average) - 2.5
             except:
                 ent["rating"] = 0
+            ent["position"] = position
             ents.append(ent)
 
         if ents:

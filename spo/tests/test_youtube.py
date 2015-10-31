@@ -9,4 +9,5 @@ def test_youtube_match():
     youtube.cache = {}  # Don't cache.
     youtube_matcher = YoutubeMatcher(youtube)
     track = Spotify().track("spotify:track:36c4JohayB9qd64eidQMBi")
-    assert youtube_matcher.match_track(track)["views"] >= 100000
+    yt_track = youtube_matcher.match_track(track)
+    assert "Daft Punk" in yt_track["title"]

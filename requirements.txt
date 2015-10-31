@@ -1,6 +1,6 @@
 spotipy==2.3.7
 click==5.1
-gdata==2.0.18
 pytest==2.8.2
 pytest-cov==2.2.0
 Jinja2==2.8
+google-api-python-client==1.4.2
