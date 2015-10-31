@@ -24,13 +24,16 @@ class ListToSpotifyURLs(FileProcessor):
             self._process_line(line)
 
     def _process_line(self, line):
-        q = line.replace(" - ", " ")
+        if line.startswith("Various - "):
+            q = line.replace("Various - ", "")
+        else:
+            q = line.replace(" - ", " ")
         data = self.spotify.search(q=q, limit=5, type=self.mode)
         try:
             search_result = data["%ss" % self.mode]["items"][0]
         except (KeyError, IndexError):
             log.info("No result for %r", q)
-            self._write("# - %s" % json.dumps({"q": q}))
+            self._write(u"# - %s" % json.dumps({"q": q}))
             self._write()
             return
 
@@ -41,24 +44,24 @@ class ListToSpotifyURLs(FileProcessor):
         else:
             datum = self.spotify.track(uri)
 
-        self._write("# + %s" % json.dumps({
+        self._write(u"# + %s" % json.dumps({
             "q": q,
             "artists": [a["name"] for a in datum["artists"]],
             "name": datum["name"],
         }))
-        self._write("%s" % uri)
+        self._write(u"%s" % uri)
         self._write()
 
 
-@click.command("spotify-search-albums")
-@click.argument('input', type=click.File('rb'), required=True)
-@click.argument('output', type=click.File('wb'), default=sys.stdout)
+@click.command("spotify-search-albums", short_help="search for albums in Spotify")
+@click.argument("input", type=click.File("rb"), required=True)
+@click.option("--output", "-o", type=click.File("wb"), default=sys.stdout)
 def spotify_search_albums(input, output):  # pragma: no cover
     ListToSpotifyURLs(mode="album", input=input, output=output).run()
 
 
-@click.command("spotify-search-tracks")
-@click.argument('input', type=click.File('rb'), required=True)
-@click.argument('output', type=click.File('wb'), default=sys.stdout)
+@click.command("spotify-search-tracks", short_help="search for tracks in Spotify")
+@click.argument("input", type=click.File("rb"), required=True)
+@click.option("--output", "-o", type=click.File("wb"), default=sys.stdout)
 def spotify_search_tracks(input, output):  # pragma: no cover
     ListToSpotifyURLs(mode="track", input=input, output=output).run()

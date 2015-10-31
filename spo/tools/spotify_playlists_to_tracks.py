@@ -60,7 +60,7 @@ class SpotifyPlaylistsToTracks(FileProcessor):
 
 
 @click.command("spotify-playlists-to-tracks", short_help="Convert a list of Spotify playlist URIs into a list of Spotify track URIs.")
-@click.argument('input', type=click.File('rb'), required=True)
-@click.argument('output', type=click.File('wb'), default=sys.stdout)
+@click.argument("input", type=click.File("rb"), required=True)
+@click.option("--output", "-o", type=click.File("wb"), default=sys.stdout)
 def spotify_playlists_to_tracks(input, output):  # pragma: no cover
     SpotifyPlaylistsToTracks(input=input, output=output).run()

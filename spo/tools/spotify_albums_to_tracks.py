@@ -12,13 +12,15 @@ log = logging.getLogger(__name__)
 
 
 class SpotifyAlbumURLsToTrackURLs(FileProcessor):
+    def fp_init(self, **kwargs):
+        self.spotify = Spotify()
 
     def process_uri(self, uri):
         try:
-            datum = Spotify().album(uri)
+            datum = self.spotify.album(uri)
         except:
-            self._write("# failed: %s" % uri)
-            self._write("# error: %s" % repr(sys.exc_info()))
+            self._write(u"# failed: %s" % uri)
+            self._write(u"# error: %s" % repr(sys.exc_info()))
             return
         self._write("# + %s" % json.dumps({
             "uri": uri,
@@ -26,19 +28,19 @@ class SpotifyAlbumURLsToTrackURLs(FileProcessor):
             "name": datum["name"],
         }))
         for num, track in enumerate(datum["tracks"]["items"], 1):
-            self._write("#- %d - %s" % (num, track["name"]))
+            self._write(u"#- %d - %s" % (num, track["name"]))
             self._write(track["href"])
         self._write()
 
     def run(self):
         for line in self.input:
             line = line.strip()
-            if line.startswith("spotify:album:"):
+            if line.startswith(u"spotify:album:"):
                 self.process_uri(line)
 
 
 @click.command("spotify-albums-to-tracks", short_help="Convert a list of Spotify album URIs into a list of Spotify track URIs.")
-@click.argument('input', type=click.File('rb'), required=True)
-@click.argument('output', type=click.File('wb'), default=sys.stdout)
+@click.argument("input", type=click.File("rb"), required=True)
+@click.option("--output", "-o", type=click.File("wb"), default=sys.stdout)
 def spotify_albums_to_tracks(input, output):  # pragma: no cover
     SpotifyAlbumURLsToTrackURLs(input=input, output=output).run()
