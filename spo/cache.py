@@ -1,13 +1,14 @@
 # -- encoding: UTF-8 --
 
 import json
-from sqlitedict import SqliteDict
 import os
 import string
 import time
 import unicodedata
-import pickle
+import cPickle as pickle
 import functools
+import sqlite3
+
 
 def _make_key(args, kwds):
     # h/t Python 3.4 functools
@@ -20,38 +21,78 @@ def _make_key(args, kwds):
         return key[0]
     return tuple(key)
 
+
+class SqliteDict(object):
+    def __init__(self, path, tablename):
+        self.path = path
+        self.tablename = tablename
+        self.conn = sqlite3.connect(path, isolation_level=None)
+        self.conn.execute("CREATE TABLE IF NOT EXISTS %s (key TEXT PRIMARY KEY, value BLOB)" % self.tablename)
+        self.conn.commit()
+
+    def __contains__(self, key):
+        key = unicode(key)
+        cur = self.conn.cursor()
+        cur.execute("SELECT 1 FROM %s WHERE key = ?" % self.tablename, (key,))
+        try:
+            next(cur)[0]
+            return True
+        except StopIteration:
+            return False
+
+    def __getitem__(self, key):
+        key = unicode(key)
+        cur = self.conn.cursor()
+        cur.execute("SELECT value FROM %s WHERE key = ?" % self.tablename, (key,))
+        try:
+            return self._decode(next(cur)[0])
+        except StopIteration:
+            raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        key = unicode(key)
+        cur = self.conn.cursor()
+        cur.execute("REPLACE INTO %s (key, value) VALUES (?,?)" % self.tablename, (key, self._encode(value)))
+        self.conn.commit()
+
+    def __delitem__(self, key):
+        cur = self.conn.cursor()
+        self.conn.execute("DELETE FROM %s WHERE key = ?" % self.tablename, (key,))
+
+    def _encode(self, obj):
+        return sqlite3.Binary(pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL))
+
+    def _decode(self, obj):
+        return pickle.loads(bytes(obj))
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
 class Cache(object):
-
-    def __init__(self, path, max_life):
-        self.storage = SqliteDict("cache.sqlite3", tablename=path)
+    def __init__(self, namespace, max_life, filename="cache.sqlite3"):
+        self.storage = SqliteDict(filename, tablename=namespace)
         self.max_life = int(max_life)
-
-    def transform_key(self, key):
-        return unicode(key)
 
     def put(self, key, value, life=0):
         expire = time.time() + (life or self.max_life)
-        self._put_shelve(key, value, expire)
-
-    def _put_shelve(self, key, value, expire):
-        self.storage[self.transform_key(key)] = {"expire": expire, "value": value}
+        self.storage[key] = {"expire": expire, "value": value}
 
     def get(self, key, default=None):
-        t_key = self.transform_key(key)
         expire = None
         value = default
-        if t_key in self.storage:
-            shelved = self.storage[t_key]
+        try:
+            shelved = self.storage[key]
             value = shelved["value"]
             expire = shelved["expire"]
-
-        if expire is not None and time.time() > expire:
-            value = default
-
+            if expire is not None and time.time() > expire:
+                value = default
+        except KeyError:
+            return default
         return value
-
-    def has(self, key):
-        return (self.transform_key(key) in self.storage)
 
     def __getitem__(self, item):
         return self.get(item)
@@ -60,7 +101,7 @@ class Cache(object):
         return self.put(key, value)
 
     def __contains__(self, item):
-        return self.has(item)
+        return item in self.storage
 
     def cached(self, func):
         @functools.wraps(func)
@@ -71,4 +112,5 @@ class Cache(object):
             else:
                 value = self[cache_key]
             return value
+
         return cached_func

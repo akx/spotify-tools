@@ -1,4 +1,5 @@
 # -- encoding: UTF-8 --
+import os, pytest
 from StringIO import StringIO
 from spo.tools.spotify_playlists_to_tracks import SpotifyPlaylistsToTracks
 from spo.tools.spotify_search import ListToSpotifyURLs
@@ -33,6 +34,8 @@ def test_album_to_tracks():
 
 
 def test_playlists_to_tracks():
+    if not os.getenv("SPOTIPY_CLIENT_ID"):
+        pytest.skip("SPOTIPY_CLIENT_ID required")
     output_sio = StringIO()
     SpotifyPlaylistsToTracks(input=StringIO("spotify:user:spotify:playlist:3kjNcwrUClSp1Iatukq3TC"), output=output_sio).run()
     assert output_sio.getvalue().count("spotify:track:") > 5
