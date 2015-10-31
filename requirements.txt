@@ -1,3 +1,4 @@
-spotipy==2.2.0
-click==3.3
+spotipy==2.3.7
+click==5.1
 gdata==2.0.18
+sqlitedict==1.4.0

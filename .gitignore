@@ -1,6 +1,8 @@
 *.html
 *.pyc
 *.shelve
+*.sqlite3
+*.txt
 .cache*
 .idea
 /venv
