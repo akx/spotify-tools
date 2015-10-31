@@ -61,10 +61,11 @@ class NoProgress(object):
 
 class PlaylistGenerator(FileProcessor):
 
-    def __init__(self, input, show_progress=False):
+    def __init__(self, input, show_progress=False, lastfm_api_key=None):
         super(PlaylistGenerator, self).__init__(input=input, output=None)
         self.spotify = Spotify()
         self.show_progress = show_progress
+        self.lastfm = LastFMAPI(api_key=lastfm_api_key)
 
     def _progress(self, iterable, **kwargs):
         if self.show_progress:
@@ -111,7 +112,7 @@ class PlaylistGenerator(FileProcessor):
         return out_tracks
 
     def add_lastfm_tags(self, tracks, lastfm_api_key=None):
-        lfm = LastFMAPI(api_key=lastfm_api_key)
+        lfm = self.lastfm
         if not lfm.api_key:  # pragma: no cover
             log.warn("Skipping Last.fm tags (no API key given)")
             return tracks
@@ -140,7 +141,7 @@ class PlaylistGenerator(FileProcessor):
 @click.option("-d", "--dedupe/--no-dedupe", "dedupe", default=True, help="Deduplicate")
 @click.option("--lastfm-api-key", default=None, help=u"Last.fm API key, for artist tag support", metavar="KEY")
 def generate_playlist(input, output_name, show_progress, lastfm_api_key, lastfm, youtube, dedupe):  # pragma: no cover
-    plg = PlaylistGenerator(input=input, show_progress=show_progress)
+    plg = PlaylistGenerator(input=input, show_progress=show_progress, lastfm_api_key=lastfm_api_key)
     tracks = plg.read_input_tracks()
     if dedupe:
         tracks = plg.deduplicate(tracks)
@@ -149,6 +150,6 @@ def generate_playlist(input, output_name, show_progress, lastfm_api_key, lastfm,
         tracks = plg.youtube_match(tracks)
 
     if lastfm:
-        tracks = plg.add_lastfm_tags(tracks, lastfm_api_key=lastfm_api_key)
+        tracks = plg.add_lastfm_tags(tracks)
 
     plg.write_html(output_name, tracks)

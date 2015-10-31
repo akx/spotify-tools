@@ -35,7 +35,7 @@ def test_playlist():
     assert len(plg.deduplicate(tracks)) < len(tracks)
     tracks = plg.youtube_match(tracks)
     assert all(t.get("youtube") for t in tracks)
-    lfm_tracks = plg.add_lastfm_tags(tracks)
-    if lfm_tracks is not None:
+    if plg.lastfm.api_key:
+        lfm_tracks = plg.add_lastfm_tags(tracks)
         assert any(t.get("artist_tags") for t in lfm_tracks)
     plg.write_html("test_output/%d" % time.time(), tracks)
