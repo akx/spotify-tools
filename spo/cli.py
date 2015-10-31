@@ -16,6 +16,15 @@ known_tools = [
     spotify_playlists_to_tracks
 ]
 
+logging.captureWarnings(True)
+
+
+class ShushUrllib(logging.Filter):
+    def filter(self, record):
+        return ("SSLContext" in record.msg)
+
+logging.getLogger("py.warnings").addFilter(ShushUrllib())
+
 
 @click.group()
 @click.option('-d', '--debug', 'log_level', flag_value=logging.DEBUG, help="Turn logging up to 11.")
@@ -30,6 +39,7 @@ def cli(log_level=logging.WARN, spotify_auth_token=None, spotify_username=None):
         Spotify.auth_username = spotify_username
 
     logging.basicConfig(level=log_level)  # pragma: no cover
+
 
 for tool in known_tools:
     cli.add_command(tool)
