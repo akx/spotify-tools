@@ -30,3 +30,14 @@ def flatten(s):
 
 def flattened_levenshtein(a, b):
     return levenshtein(flatten(a), flatten(b))
+
+
+def batch(value, count):
+    tmp = []
+    for item in value:
+        if len(tmp) == count:
+            yield tmp
+            tmp = []
+        tmp.append(item)
+    if tmp:
+        yield tmp
